@@ -10,12 +10,21 @@ import pickle
 import datetime
 import pandas as pd
 
-from sklearn.cross_validation import train_test_split
+"""from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, \
                                        ZeroPadding2D
+"""
+from keras.applications.resnet50 import ResNet50
+from keras.applications.inception_v3 import InceptionV3
+from keras.applications.xception import Xception
+from keras.layers import Conv2D, MaxPooling2D, GlobalAveragePooling2D, BatchNormalization
+from keras.layers import Dropout, Flatten, Dense
+from keras.models import Sequential
+from keras.callbacks import ModelCheckpoint
+from keras.models import Model
 
 # from keras.layers.normalization import BatchNormalization
 # from keras.optimizers import Adam
@@ -282,8 +291,31 @@ def copy_selected_drivers(train_data, train_target, driver_id, driver_list):
     return data, target, index
 
 
-def vgg_std16_model(img_rows, img_cols, color_type=1):
-    model = Sequential()
+def pretrained_model(index):
+    """
+    Retorno modelos pre-treinados com suas funções de pre-processamento.
+    """
+
+    if index == 0:
+        return ["ResNet50", ResNet50(weights='imagenet', include_top=False), app.resnet50.preprocess_input]
+    elif index == 1:
+        return ["InceptionV3", InceptionV3(weights='imagenet', include_top=False), app.inception_v3.preprocess_input]
+    return ["Xception", Xception(weights='imagenet', include_top=False), app.xception.preprocess_input]
+
+def load_model(index_model):
+    model_base = pretrained_model(index_model)
+    x = model_base.output
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(512, activation='relu')(x)
+    x = Dense(256, activation='relu')(x)
+    x = Dense(128, activation='relu')(x)
+    outputs = Dense(10, activation='relu')(x)
+    model = Model(inputs=model_base.input, outputs=outputs)
+    model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+    """Sequential()
     model.add(ZeroPadding2D((1, 1), input_shape=(color_type,
                                                  img_rows, img_cols)))
     model.add(Convolution2D(64, 3, 3, activation='relu'))
@@ -336,7 +368,7 @@ def vgg_std16_model(img_rows, img_cols, color_type=1):
     # Learning rate is changed to 0.001
     sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
-    return model
+    return model"""
 
 
 def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
@@ -346,6 +378,9 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     img_rows, img_cols = 224, 224
     batch_size = 64
     random_state = 20
+    index_model = 0
+    checkpointer = ModelCheckpoint(filepath="weights.best." + str(index_model) + ".hdf5", verbose=1, save_best_only=True)
+
 
     train_data, train_target, driver_id, unique_drivers = \
         read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
@@ -373,10 +408,9 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
         # print('Test drivers: ', unique_list_valid)
         # model = create_model_v1(img_rows, img_cols, color_type_global)
         # model = vgg_bn_model(img_rows, img_cols, color_type_global)
-        model = vgg_std16_model(img_rows, img_cols, color_type_global)
+        model = load_model(index_model)
 
-        model.fit(train_data, train_target, batch_size=batch_size,
-                  nb_epoch=nb_epoch,
+        model.fit(train_data, train_target, batch_size=batch_size, nb_epoch=nb_epoch,
                   show_accuracy=True, verbose=1,
                   validation_split=split, shuffle=True)
 
