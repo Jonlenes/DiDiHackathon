@@ -411,7 +411,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
         model = load_model(index_model)
 
         model.fit(train_data, train_target, batch_size=batch_size, nb_epoch=nb_epoch,
-                  show_accuracy=True, verbose=1, callbacks=[checkpointer]
+                  show_accuracy=True, verbose=1,
                   validation_split=split, shuffle=True)
 
         # print('losses: ' + hist.history.losses[-1])
